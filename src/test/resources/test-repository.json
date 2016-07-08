@@ -1,0 +1,32 @@
+{
+    "name" : "${repository.uuid}",
+    "workspaces" : {
+        "default" : "default",
+        "allowCreation" : true
+    },
+    "clustering" : {
+        "clusterName" : "${cluster.name}",
+        "configuration" : "${jgroups.location}"
+    },
+    "storage" : {
+        "persistence" : {
+            "type" : "db",
+            "driver" : "org.h2.Driver",
+            "connectionUrl": "${db.url}"
+        },
+        "binaryStorage" : {           
+            "type"  : "database",
+            "driverClass" : "org.h2.Driver",
+            "url" : "${db.url}",
+            "username" : "sa",
+            "password" : ""
+        }
+    },
+    "security" : {
+        "anonymous" : {
+            "username" : "anonymous",
+            "roles" : ["readonly","readwrite","admin"],
+            "useOnFailedLogin" : true
+        }
+    }
+}
