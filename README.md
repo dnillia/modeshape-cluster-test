@@ -78,7 +78,7 @@ The Logback configuration file is located under `src/main/resources/logback.xml`
 level or the log file, update the file accordingly.
 
 
-## JUnit Tests
+## JUnit Tests for Clustering
 
 ### Overview
 
@@ -209,3 +209,18 @@ Use one of the following options:
 The problem demonstrated in this project may be related to the potentially incorrect JGroups configuration file, even though
 it is possible to see send/receive messages from JGroups cluster members.
   
+## JUnit Tests for Limitations
+
+To run JUnit tests targeted to discover limitations of the ModeShape 5.x with Oracle 11g, run the following command
+(do not forget to update property values):
+
+```
+mvn clean verify -Pperformance \
+  -Ddb.url=jdbc:oracle:thin:@//test.test:1521/test \
+  -Ddb.username=test \
+  -Ddb.password=test \
+  -Drepository.configuration.file=/test-repository-oracle.json \
+  -Dojdbc6.jar.path=/Users/test/.m2/repository/com/oracle/ojdbc6/12.1.0.2/ojdbc6-12.1.0.2.jar \
+  -Dperformance.create.child.count=5 \
+  -Dperformance.delete.child.count=10
+```

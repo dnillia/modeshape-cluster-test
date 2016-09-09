@@ -1,0 +1,34 @@
+{
+    "name" : "${repository.uuid}",
+    "workspaces" : {
+        "default" : "default",
+        "allowCreation" : true
+    },
+    "clustering" : {
+        "clusterName" : "${cluster.name}",
+        "configuration" : "${jgroups.location}"
+    },
+    "storage" : {
+        "persistence" : {
+            "type" : "db",
+            "driver" : "oracle.jdbc.OracleDriver",
+            "connectionUrl": "${db.url}",
+            "username" : "${db.username}",
+            "password" : "${db.password}"
+        },
+        "binaryStorage" : {           
+            "type"  : "database",
+            "driverClass" : "oracle.jdbc.OracleDriver",
+            "url" : "${db.url}",
+            "username" : "${db.username}",
+            "password" : "${db.password}"
+        }
+    },
+    "security" : {
+        "anonymous" : {
+            "username" : "anonymous",
+            "roles" : ["readonly","readwrite","admin"],
+            "useOnFailedLogin" : true
+        }
+    }
+}

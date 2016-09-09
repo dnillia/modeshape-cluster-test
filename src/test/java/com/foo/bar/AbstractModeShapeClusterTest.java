@@ -22,7 +22,15 @@ import org.modeshape.schematic.document.ParsingException;
 
 /**
  * The tests to verify ModeShape clustering capabilities when multiple {@link Repository repositories}
- * are running in a single JVM, using H2 database that utilizes filesystem as a storage unit.
+ * are running in a single JVM. By default, H2 database backed by the filesystem will be used.
+ * If another DBMS is necessary, utilize the following system properties:
+ * 
+ * <ul>
+ *   <li>{@code repository.configuration.file} - the repository configuration file, defaults to {@code /test-repository-h2.json}</li>
+ *   <li>{@code db.url} - the DB connection URL, defaults to {@code jdbc:h2:file:./target/content/db;DB_CLOSE_DELAY=-1}</li>
+ *   <li>{@code db.username} - the DB username, defaults to {@code sa}</li>
+ *   <li>{@code db.password} - the DB password, defaults to an empty string</li>
+ * </ul>
  * 
  * @author Illia Khokholkov
  *
@@ -34,9 +42,12 @@ public abstract class AbstractModeShapeClusterTest {
     
     static final String CLUSTER_NAME = "test-cluster";
     static final String JGROUPS_LOCATION = "test-jgroups.xml";
-    static final String REPOSITORY_CONFIGURATION_FILE = "/test-repository.json";
+    static final String REPOSITORY_CONFIGURATION_FILE = System.getProperty("repository.configuration.file", "/test-repository-h2.json");
     
-    static final String DB_URL = "jdbc:h2:file:./target/content/db;DB_CLOSE_DELAY=-1";
+    static final String DB_URL = System.getProperty("db.url", "jdbc:h2:file:./target/content/db;DB_CLOSE_DELAY=-1");
+    static final String DB_USERNAME = System.getProperty("db.username", "sa");
+    static final String DB_PASSWORD = System.getProperty("db.password", "");
+    static final String ORACLE_DB_DRIVER_JAR_PROPERTY = "ojdbc6.jar.path";
     
     static ModeShapeEngine engine;
     
@@ -44,12 +55,17 @@ public abstract class AbstractModeShapeClusterTest {
     static Repository repository2;
     
     @BeforeClass
-    public static void setUpClass() throws ConfigurationException, ParsingException, RepositoryException {
+    public static void setUpClass() throws ConfigurationException, ParsingException, RepositoryException, ClassNotFoundException {
+        
+        if (System.getProperty(ORACLE_DB_DRIVER_JAR_PROPERTY) != null) {
+            Class.forName("oracle.jdbc.OracleDriver");
+        }
+        
         engine = new ModeShapeEngine();
         engine.start();
         
-        repository1 = createRepository(engine, DB_URL);
-        repository2 = createRepository(engine, DB_URL);
+        repository1 = createRepository(engine);
+        repository2 = createRepository(engine);
     }
     
     @AfterClass
@@ -159,10 +175,13 @@ public abstract class AbstractModeShapeClusterTest {
         }
     }
     
-    static Repository createRepository(ModeShapeEngine engine, String dbUrl)
+    static Repository createRepository(ModeShapeEngine engine)
             throws ConfigurationException, ParsingException, RepositoryException {
         
-        System.setProperty("db.url", dbUrl);
+        System.setProperty("db.url", DB_URL);
+        System.setProperty("db.username", DB_USERNAME);
+        System.setProperty("db.password", DB_PASSWORD);
+        
         System.setProperty("repository.uuid", UUID.randomUUID().toString());
         System.setProperty("cluster.name", CLUSTER_NAME);
         System.setProperty("jgroups.location", JGROUPS_LOCATION);

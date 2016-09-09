@@ -51,6 +51,7 @@ public class NodeHelper {
         
         Node node = session.getNode(ABSOLUTE_APP_ROOT_NODE_PATH);
         node.remove();
+        session.save();
     }
     
     public static String addNode(Session session, String parentAbsolutePath,

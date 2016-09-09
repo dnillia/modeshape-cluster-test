@@ -18,8 +18,8 @@
             "type"  : "database",
             "driverClass" : "org.h2.Driver",
             "url" : "${db.url}",
-            "username" : "sa",
-            "password" : ""
+            "username" : "${db.username}",
+            "password" : "${db.password}"
         }
     },
     "security" : {
