@@ -1,5 +1,6 @@
 {
     "name" : "${repository.uuid}",
+    "jndiName" : "",
     "workspaces" : {
         "default" : "default",
         "allowCreation" : true
@@ -20,6 +21,9 @@
             "url" : "${db.url}",
             "username" : "sa",
             "password" : ""
+        },
+        "transactionManagerLookup" : {
+            "name" : "com.foo.bar.CustomTransactionManagerLookup"
         }
     },
     "security" : {

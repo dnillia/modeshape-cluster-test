@@ -191,10 +191,10 @@ public class ApplicationRunner {
             List<String> affectedNodes = new ArrayList<>(nodeCount);
     
             for (int i = 0; i < nodeCount; i++) {
-                String parentNode = NodeHelper.addNode(session, appRootNode,
+                String parentNode = NodeHelper.unsafeAddNode(session, appRootNode,
                         NodeHelper.getLeafParentRelativePath(i), Optional.empty());
                 
-                String childNode = NodeHelper.addNode(session, parentNode,
+                String childNode = NodeHelper.unsafeAddNode(session, parentNode,
                         NodeHelper.getLeafRelativePath(i), Optional.of(UUID.randomUUID().toString()));
     
                 affectedNodes.add(childNode);

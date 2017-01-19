@@ -34,7 +34,7 @@ public class PerformanceTest extends AbstractModeShapeClusterTest {
      */
     @Test
     public void createDirectChildren() throws RepositoryException {
-        createParentNodes(repository1, CREATE_CHILD_COUNT);
+        createParentNodes(repositoryIterator.next(), CREATE_CHILD_COUNT);
     }
     
     /**
@@ -45,9 +45,9 @@ public class PerformanceTest extends AbstractModeShapeClusterTest {
      */
     @Test
     public void deleteDirectChildren() throws RepositoryException {
-        createParentNodes(repository1, DELETE_CHILD_COUNT);
+        createParentNodes(repositoryIterator.next(), DELETE_CHILD_COUNT);
         
-        Session session = RepositoryHelper.createSession(repository1);
+        Session session = RepositoryHelper.createSession(repositoryIterator.next());
         try {
             NodeHelper.deleteApplicationRoot(session);
             

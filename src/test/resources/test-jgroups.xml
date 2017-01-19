@@ -16,12 +16,11 @@
          timer.queue_max_size="500"
          thread_pool.enabled="false"
          oob_thread_pool.enabled="false"
-         port_range="5" />
+         port_range="15" />
 
     <TCPPING initial_hosts="${jgroups.tcpping.initial_hosts:127.0.0.1[7800]}"
-             port_range="5" />
+             port_range="15" />
              
-    <MPING/>
     <MERGE3 min_interval="10000"
             max_interval="30000" />
     <FD timeout="3000" max_tries="3" />

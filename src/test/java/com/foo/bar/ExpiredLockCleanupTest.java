@@ -31,7 +31,7 @@ public class ExpiredLockCleanupTest extends AbstractModeShapeClusterTest {
      */
     @Test
     public void cleanUpExpiredShallowOpenScopedLock() throws Exception {
-        Session session = createSession(repository1);
+        Session session = createSession(repositoryIterator.next());
         
         try {
             // Create a new lockable node

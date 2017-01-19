@@ -23,16 +23,15 @@ public class ChildNodeCreationTest extends AbstractModeShapeClusterTest {
 
     @Test
     public void createLeafNodesInOrder() throws RepositoryException {
-        List<String> parentNodes = createParentNodes(repository1, LEAF_NODE_COUNT);
-        List<String> childNodes = createChildNodes(repository1, parentNodes);
+        List<String> parentNodes = createParentNodes(repositoryIterator.next(), LEAF_NODE_COUNT);
+        List<String> childNodes = createChildNodes(repositoryIterator.next(), parentNodes);
         
-        verifyChildNodes(repository1, childNodes);
-        verifyChildNodes(repository2, childNodes);
+        verifyChildNodes(childNodes);
     }
     
     @Test
     public void createLeafNodesInParallel() throws InterruptedException, ExecutionException, RepositoryException {
-        List<String> parentNodes = createParentNodes(repository1, LEAF_NODE_COUNT);
+        List<String> parentNodes = createParentNodes(repositoryIterator.next(), LEAF_NODE_COUNT);
         List<String> affectedNodes = new ArrayList<>(parentNodes.size());
         ExecutorService executorService = ConcurrencyHelper.createExecutorService(THREAD_COUNT, "create-child-parallel-");
         
@@ -41,7 +40,7 @@ public class ChildNodeCreationTest extends AbstractModeShapeClusterTest {
             
             for (int i = 0; i < parentNodes.size(); i++) {
                 tasks.add(NodeHelper.getCreateChildNodeCallable(
-                        repository1,
+                        repositoryIterator.next(),
                         parentNodes.get(i),
                         NodeHelper.getLeafRelativePath(i)));
             }
@@ -52,8 +51,7 @@ public class ChildNodeCreationTest extends AbstractModeShapeClusterTest {
             
             assertThat(affectedNodes).hasSize(parentNodes.size());
             
-            verifyChildNodes(repository1, affectedNodes);
-            verifyChildNodes(repository2, affectedNodes);
+            verifyChildNodes(affectedNodes);
             
         } finally {
             ConcurrencyHelper.closeExecutorService(executorService, TimeUnit.SECONDS.toMillis(30));

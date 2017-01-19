@@ -27,16 +27,15 @@ public class ChildNodeUpdateTest extends AbstractModeShapeClusterTest {
 
     @Before
     public void setUpTest() throws RepositoryException {
-        List<String> parentNodes = createParentNodes(repository1, LEAF_NODE_COUNT);
-        List<String> childNodes = createChildNodes(repository1, parentNodes);
+        List<String> parentNodes = createParentNodes(repositoryIterator.next(), LEAF_NODE_COUNT);
+        List<String> childNodes = createChildNodes(repositoryIterator.next(), parentNodes);
         
-        verifyChildNodes(repository1, childNodes);
-        verifyChildNodes(repository2, childNodes);
+        verifyChildNodes(childNodes);
     }
     
     @Test
     public void updateLeafNodesInOrder() throws RepositoryException {
-        Session session = createSession(repository1);
+        Session session = createSession(repositoryIterator.next());
         
         try {
             List<String> affectedNodes = new ArrayList<>(LEAF_NODE_COUNT);
@@ -46,8 +45,7 @@ public class ChildNodeUpdateTest extends AbstractModeShapeClusterTest {
                         UUID.randomUUID().toString()));
             }
             
-            verifyChildNodes(repository1, affectedNodes);
-            verifyChildNodes(repository2, affectedNodes);
+            verifyChildNodes(affectedNodes);
             
         } finally {
             session.logout();
@@ -64,7 +62,7 @@ public class ChildNodeUpdateTest extends AbstractModeShapeClusterTest {
             
             for (int i = 0; i < LEAF_NODE_COUNT; i++) {
                 tasks.add(NodeHelper.getUpdateChildNodeCallable(
-                        repository1,
+                        repositoryIterator.next(),
                         NodeHelper.getLeafAbsolutePath(i)));
             }
             
@@ -74,8 +72,7 @@ public class ChildNodeUpdateTest extends AbstractModeShapeClusterTest {
             
             assertThat(affectedNodes).hasSize(LEAF_NODE_COUNT);
             
-            verifyChildNodes(repository1, affectedNodes);
-            verifyChildNodes(repository2, affectedNodes);
+            verifyChildNodes(affectedNodes);
             
         } finally {
             ConcurrencyHelper.closeExecutorService(executorService, TimeUnit.SECONDS.toMillis(30));

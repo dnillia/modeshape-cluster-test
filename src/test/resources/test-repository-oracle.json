@@ -1,12 +1,14 @@
 {
     "name" : "${repository.uuid}",
+    "jndiName" : "",
     "workspaces" : {
         "default" : "default",
         "allowCreation" : true
     },
     "clustering" : {
         "clusterName" : "${cluster.name}",
-        "configuration" : "${jgroups.location}"
+        "configuration" : "${jgroups.location}",
+        "locking" : "db"
     },
     "storage" : {
         "persistence" : {
@@ -22,6 +24,9 @@
             "url" : "${db.url}",
             "username" : "${db.username}",
             "password" : "${db.password}"
+        },
+        "transactionManagerLookup" : {
+            "name" : "com.foo.bar.CustomTransactionManagerLookup"
         }
     },
     "security" : {

@@ -3,13 +3,15 @@ package com.foo.bar;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import javax.jcr.Node;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.lock.Lock;
 import javax.jcr.version.Version;
-
+import org.modeshape.jcr.JcrLexicon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +30,7 @@ public class NodeHelper {
     static final String LEAF_NODE_PREFIX = "file-";
     
     static final String MIXIN_VERSIONABLE = "mix:versionable";
+    static final String MIXIN_LOCKABLE = "mix:lockable";
     
     public static String createApplicationRoot(Session session) throws RepositoryException {
         if (session.nodeExists(ABSOLUTE_APP_ROOT_NODE_PATH)) {
@@ -36,6 +39,7 @@ public class NodeHelper {
         
         Node node = session.getRootNode().addNode(RELATIVE_APP_ROOT_NODE_PATH);
         node.addMixin(MIXIN_VERSIONABLE);
+        node.addMixin(MIXIN_LOCKABLE);
         node.getSession().save();
 
         checkoutNode(node);
@@ -54,7 +58,7 @@ public class NodeHelper {
         session.save();
     }
     
-    public static String addNode(Session session, String parentAbsolutePath,
+    public static String unsafeAddNode(Session session, String parentAbsolutePath,
             String relativePath, Optional<String> content) throws RepositoryException {
         
         Node parent = session.getNode(parentAbsolutePath);
@@ -62,6 +66,7 @@ public class NodeHelper {
         
         Node child = parent.addNode(relativePath);
         child.addMixin(MIXIN_VERSIONABLE);
+        child.addMixin(MIXIN_LOCKABLE);
         
         if (content.isPresent()) {
             child.setProperty(NODE_CONTENT_PROPERTY, content.get());
@@ -74,6 +79,65 @@ public class NodeHelper {
         checkinNode(parent);
         
         return child.getPath();
+    }
+    
+    public static String safeAddNodeNoTransaction(Session session, String parentAbsolutePath,
+            String relativePath, Optional<String> content) throws RepositoryException {
+        
+        Node parent = session.getNode(parentAbsolutePath);
+        lockNode(parent);
+        checkoutNode(parent);
+            
+        try {
+            Node child = parent.addNode(relativePath);
+            child.addMixin(MIXIN_VERSIONABLE);
+            child.addMixin(MIXIN_LOCKABLE);
+            
+            if (content.isPresent()) {
+                child.setProperty(NODE_CONTENT_PROPERTY, content.get());
+            }
+            
+            child.getSession().save();
+            checkoutNode(child);
+            checkinNode(child);
+            
+            checkinNode(parent);
+            return child.getPath();
+            
+        } finally {
+            unlockNode(parent);
+        }
+    }
+    
+    public static String safeAddNodeWithTransaction(Session session, String parentAbsolutePath,
+            String relativePath, Optional<String> content) throws RepositoryException {
+        
+        Node parent = session.getNode(parentAbsolutePath);
+        TransactionExecutor.runInTransaction(() -> lockNode(parent));
+            
+        return TransactionExecutor.runInTransaction(() -> {
+            checkoutNode(parent);
+            
+            try {
+                Node child = parent.addNode(relativePath);
+                child.addMixin(MIXIN_VERSIONABLE);
+                child.addMixin(MIXIN_LOCKABLE);
+                
+                if (content.isPresent()) {
+                    child.setProperty(NODE_CONTENT_PROPERTY, content.get());
+                }
+                
+                child.getSession().save();
+                checkoutNode(child);
+                checkinNode(child);
+                
+                checkinNode(parent);
+                return child.getPath();
+                
+            } finally {
+                unlockNode(parent);
+            }
+        });
     }
 
     public static String updateNode(Session session, String absolutePath, String content) throws RepositoryException {
@@ -92,6 +156,23 @@ public class NodeHelper {
         return node.getPath();
     }
     
+    public static String safeUpdateNode(Session session, String absolutePath, String content) throws RepositoryException {
+        Node node = session.getNode(absolutePath);
+        lockNode(node);
+        
+        try {
+            checkoutNode(node);
+            node.setProperty(NODE_CONTENT_PROPERTY, content);
+            node.getSession().save();
+            checkinNode(node);
+            
+        } finally {
+            unlockNode(node);
+        }
+        
+        return node.getPath();
+    }
+    
     public static Callable<String> getUpdateChildNodeCallable(Repository repository, String childAbsolutePath) {
         return new UpdateChildNodeCallable(repository, childAbsolutePath);
     }
@@ -106,6 +187,22 @@ public class NodeHelper {
     
     public static Version checkinNode(Node node) throws RepositoryException {
         return node.getSession().getWorkspace().getVersionManager().checkin(node.getPath());
+    }
+    
+    public static Lock lockNode(Node node) throws RepositoryException {
+        if (!node.isLocked() && (node.hasProperty(JcrLexicon.LOCK_OWNER.toString())
+                || node.hasProperty(JcrLexicon.IS_DEEP.toString()))) {
+            
+            throw new RuntimeException(String.format("Corrupted node detected "
+                    + "[path=%s, id=%s]", node.getPath(), node.getIdentifier()));
+        }
+        
+        return node.getSession().getWorkspace().getLockManager().lock(
+                node.getPath(), false, false, TimeUnit.MINUTES.toSeconds(5), null);
+    }
+    
+    public static void unlockNode(Node node) throws RepositoryException {
+        node.getSession().getWorkspace().getLockManager().unlock(node.getPath());
     }
     
     public static String getLeafAbsolutePath(int index) {
@@ -190,7 +287,7 @@ public class NodeHelper {
                 Session session = RepositoryHelper.createSession(repository);
                 
                 try {
-                    return NodeHelper.addNode(session, parentAbsolutePath, childRelativePath,
+                    return NodeHelper.unsafeAddNode(session, parentAbsolutePath, childRelativePath,
                             Optional.of(UUID.randomUUID().toString()));
                     
                 } finally {
