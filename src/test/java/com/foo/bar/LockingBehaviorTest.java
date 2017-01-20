@@ -8,8 +8,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.lock.LockException;
 
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -19,19 +21,51 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RowLockContentionTest extends AbstractModeShapeClusterTest {
+/**
+ * The tests for the locking behavior.
+ * 
+ * @author Illia Khokholkov
+ *
+ */
+public class LockingBehaviorTest extends AbstractModeShapeClusterTest {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RowLockContentionTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(LockingBehaviorTest.class);
     private static final int RETRY_ATTEMPT_COUNT = 2;
     
-    @Test
-    public void addNodesInOrderWithTransaction() throws Exception {
-        addNodes(true);
-    }
-    
+    /**
+     * Tests whether a {@link LockException} can be thrown when adding nodes to a parent node in
+     * a sequential order. The parent and child nodes are versioned. Note, that lock/unlock mechanism
+     * is utilized when adding child nodes (shallow, open-scoped locks).
+     * 
+     * <ol>
+     *   <li>Create a parent node.</li>
+     *   <li>In order, add {@code N} child nodes, where each next request to add a node gets sent to the
+     *       next available instance of the {@link Repository}. The access is controlled via
+     *       {@link AbstractModeShapeClusterTest#repositoryIterator}. The number of running
+     *       {@link Repository} instances is controlled via {@code cluster.size} system property.</li>
+     *   <li>Expect a {@link LockException} some time during the test run. The number of members in
+     *       the cluster does play a role. The exception, typically, does not get thrown when there is
+     *       only a few members. However, if we get around {@code 5-10} members, it becomes more prominent.</li>
+     * </ol>
+     * 
+     * @throws Exception
+     *             if an error occurred
+     */
     @Test
     public void addNodesInOrderNoTransaction() throws Exception {
         addNodes(false);
+    }
+    
+    /**
+     * The same as {@link #addNodesInOrderNoTransaction()}, except for there are user-defined
+     * transactions when working with nodes.
+     * 
+     * @throws Exception
+     *             if an error occurred        
+     */
+    @Test
+    public void addNodesInOrderWithTransaction() throws Exception {
+        addNodes(true);
     }
     
     @Test
@@ -159,13 +193,15 @@ public class RowLockContentionTest extends AbstractModeShapeClusterTest {
             String childNode = "child-" + i;
             
             try {
+                final String created;
+                
                 if (transactionPerNode) {
-                    NodeHelper.safeAddNodeWithTransaction(session, parentNode, childNode, Optional.empty());
+                    created = NodeHelper.safeAddNodeWithTransaction(session, parentNode, childNode, Optional.empty());
                 } else {
-                    NodeHelper.safeAddNodeNoTransaction(session, parentNode, childNode, Optional.empty());
+                    created = NodeHelper.safeAddNodeNoTransaction(session, parentNode, childNode, Optional.empty());
                 }
                 
-                LOGGER.debug("Created child node [path={}]", childNode);
+                LOGGER.debug("Created child node [path={}]", created);
                 
             } finally {
                 session.logout();

@@ -12,5 +12,5 @@ import org.junit.runners.Suite.SuiteClasses;
  *
  */
 @RunWith(Suite.class)
-@SuiteClasses({ RowLockContentionTest.class })
+@SuiteClasses({ LockingBehaviorTest.class })
 public class TestSuite {}
