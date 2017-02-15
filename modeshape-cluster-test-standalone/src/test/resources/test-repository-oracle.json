@@ -1,0 +1,39 @@
+{
+    "name" : "${repository.uuid}",
+    "jndiName" : "",
+    "workspaces" : {
+        "default" : "default",
+        "allowCreation" : true
+    },
+    "clustering" : {
+        "clusterName" : "${cluster.name}",
+        "configuration" : "${jgroups.location}",
+        "locking" : "db"
+    },
+    "storage" : {
+        "persistence" : {
+            "type" : "db",
+            "driver" : "oracle.jdbc.OracleDriver",
+            "connectionUrl": "${db.url}",
+            "username" : "${db.username}",
+            "password" : "${db.password}"
+        },
+        "binaryStorage" : {           
+            "type"  : "database",
+            "driverClass" : "oracle.jdbc.OracleDriver",
+            "url" : "${db.url}",
+            "username" : "${db.username}",
+            "password" : "${db.password}"
+        },
+        "transactionManagerLookup" : {
+            "name" : "${transaction.manager.lookup}"
+        }
+    },
+    "security" : {
+        "anonymous" : {
+            "username" : "anonymous",
+            "roles" : ["readonly","readwrite","admin"],
+            "useOnFailedLogin" : true
+        }
+    }
+}
