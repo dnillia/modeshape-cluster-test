@@ -207,7 +207,13 @@ public class NodeHelper {
     }
     
     public static void unlockNode(Node node) throws RepositoryException {
-        node.getSession().getWorkspace().getLockManager().unlock(node.getPath());
+        Session session = node.getSession();
+        
+        if (session.hasPendingChanges()) {
+            session.refresh(false);
+        }
+        
+        session.getWorkspace().getLockManager().unlock(node.getPath());
     }
     
     public static String getLeafAbsolutePath(int index) {

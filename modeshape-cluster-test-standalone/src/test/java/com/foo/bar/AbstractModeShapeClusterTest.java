@@ -8,7 +8,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -38,7 +37,6 @@ import org.modeshape.schematic.document.ParsingException;
  */
 public abstract class AbstractModeShapeClusterTest {
 
-    static final int CLUSTER_SIZE = Integer.valueOf(System.getProperty("cluster.size", "1"));
     static final int LEAF_NODE_COUNT = Integer.valueOf(System.getProperty("leaf.node.count", "100"));
     static final int THREAD_COUNT = Integer.valueOf(System.getProperty("thread.count", "1"));
     
@@ -60,6 +58,8 @@ public abstract class AbstractModeShapeClusterTest {
     @BeforeClass
     public static void setUpClass() throws Exception {
         
+        int clusterSize = Integer.valueOf(System.getProperty("cluster.size", "3"));
+        
         if (System.getProperty(ORACLE_DB_DRIVER_JAR_PROPERTY) != null) {
             Class.forName("oracle.jdbc.OracleDriver");
         }
@@ -68,7 +68,7 @@ public abstract class AbstractModeShapeClusterTest {
         engine.start();
         
         repositories = new LinkedList<>();
-        for (int i = 0; i < CLUSTER_SIZE; i++) {
+        for (int i = 0; i < clusterSize; i++) {
             repositories.add(createRepository(engine));
         }
         
@@ -76,7 +76,7 @@ public abstract class AbstractModeShapeClusterTest {
     }
     
     @AfterClass
-    public static void tearDownClass() throws InterruptedException, ExecutionException {
+    public static void tearDownClass() throws Exception {
         if (engine != null) {
             engine.shutdown().get();
         }

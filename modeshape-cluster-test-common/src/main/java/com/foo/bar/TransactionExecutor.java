@@ -29,11 +29,6 @@ public class TransactionExecutor {
 
             T result = callable.call();
             
-            if (!isActive()) {
-                throw new RuntimeException(String.format("No active transaction present "
-                        + "[transaction=%s]", MANAGER.getTransaction()));
-            }
-            
             if (isActive() && commit) {
                 MANAGER.commit();
             }
