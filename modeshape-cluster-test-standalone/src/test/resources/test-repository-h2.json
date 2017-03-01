@@ -13,6 +13,7 @@
     "storage" : {
         "persistence" : {
             "type" : "db",
+            "dropOnExit" : "true",
             "driver" : "org.h2.Driver",
             "connectionUrl": "${db.url}"
         },

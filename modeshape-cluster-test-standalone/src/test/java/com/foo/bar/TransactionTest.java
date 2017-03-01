@@ -2,16 +2,16 @@ package com.foo.bar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import javax.jcr.Node;
+import javax.jcr.Repository;
 import javax.jcr.Session;
 
-import org.apache.commons.lang3.mutable.MutableObject;
-import org.junit.Before;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.modeshape.jcr.ModeShapeEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,65 +21,67 @@ import org.slf4j.LoggerFactory;
  * @author Illia Khokholkov
  *
  */
-public class TransactionTest extends AbstractModeShapeClusterTest {
+public class TransactionTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TransactionTest.class);
     
     private static final String ABSOLUTE_PARENT_NODE_PATH = "/tnxParentNode";
     private static final String RELATIVE_PARENT_NODE_PATH = "tnxParentNode";
+
+    private static ModeShapeEngine engine;
+    private static Repository repository;
     
     @BeforeClass
     public static void setUpClass() throws Exception {
-        System.setProperty("cluster.size", "1");
-        AbstractModeShapeClusterTest.setUpClass();
-    }
-    
-    @BeforeClass
-    public static void resetClusterSize() throws Exception {
-        System.clearProperty("cluster.size");
-        AbstractModeShapeClusterTest.tearDownClass();
-    }
-    
-    @Before
-    public void setUpParent() throws Exception {
-        Session session = createSession(repositoryIterator.next());
+        engine = new ModeShapeEngine();
+        engine.start();
         
+        repository = AbstractModeShapeClusterTest.createRepository(engine);
+        
+        Session session = AbstractModeShapeClusterTest.createSession(repository);
         try {
-            if (session.nodeExists(ABSOLUTE_PARENT_NODE_PATH)) {
-                Node parentNode = session.getNode(ABSOLUTE_PARENT_NODE_PATH);
-                parentNode.remove();
-                
-                session.save();
-            }
-            
             Node parentNode = session.getRootNode().addNode(RELATIVE_PARENT_NODE_PATH);
             parentNode.addMixin("mix:lockable");
-                
+            
             session.save();
             
         } finally {
             session.logout();
         }
     }
-
+    
+    @AfterClass
+    public static void tearDownClass() throws Exception {
+        if (engine != null) {
+            engine.shutdown().get();
+        }
+    }
+    
+    // Caused by: java.lang.IllegalStateException: Cannot attempt to lock documents without an existing ModeShape transaction
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:160)
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:153)
+    //   at org.modeshape.jcr.cache.document.WritableSessionCache.lockNodes(WritableSessionCache.java:1524)
+    //
+    
     @Test
-    public void addOneNode() throws Exception {
-        Session session = createSession(repositoryIterator.next());
-        MutableObject<String> childPath1 = new MutableObject<>();
+    public void addOneNodeAbortAfterSaveUnlockSuspendAborted() throws Exception {
+        Session session = AbstractModeShapeClusterTest.createSession(repository);
+        
+        String absoluteChildPath = ABSOLUTE_PARENT_NODE_PATH + "/" + "child";
+        String relativeChildPath = "child";
         
         try {
             Node parentNode = session.getNode(ABSOLUTE_PARENT_NODE_PATH);
-            NodeHelper.lockNode(parentNode);
-            
-            // Attempt to add one child nodes inside a user transaction that is aborted before
-            // a call to save a session is made.
+            NodeLockHelper.lockNode(parentNode);
             
             try {
                 TransactionExecutor.runInTransaction(() -> {
 
-                    // Wait for "com.arjuna.ats.arjuna.coordinator.TransactionReaper" to abort the
-                    // transaction. The timeout is set to "3" seconds, but we will wait here for
-                    // "5" seconds to ensure that enough time has passed.
+                    LOGGER.trace("Adding a child node and saving the session");
+                    
+                    Node childNode1 = parentNode.addNode(relativeChildPath);
+                    childNode1.addMixin("mix:lockable");
+                    session.save();
                     
                     LOGGER.trace("Waiting for user transaction to expire");
                     
@@ -90,35 +92,27 @@ public class TransactionTest extends AbstractModeShapeClusterTest {
                         throw new RuntimeException(e);
                     }
                     
-                    // Add the child node and invoke save on the session after transaction is aborted.
-                    // Since initial transaction is no longer active, ideally, no changes should
-                    // be persisted at this point.
-                    
-                    LOGGER.trace("Attempting to add a new child node when initial user transaction "
-                            + "has expired");
-                    
-                    Node childNode1 = parentNode.addNode(UUID.randomUUID().toString());
-                    childNode1.addMixin("mix:lockable");
-                    session.save();
-                    
-                    childPath1.setValue(childNode1.getPath());
-                    
                     return null;
                 });
                 
+            } catch (RuntimeException e) {
+                assertThat(e.getMessage()).contains("Non-active user transaction");
+                
             } finally {
-                NodeHelper.unlockNode(parentNode);
+                NodeLockHelper.unlockSuspendNotActive(parentNode);
             }
             
         } finally {
             session.logout();
         }
         
-        assertThat(childPath1.getValue()).isNotNull();
-        Session newSession = createSession(repositoryIterator.next());
-        
+        Session newSession = AbstractModeShapeClusterTest.createSession(repository);
         try {
-            assertThat(newSession.nodeExists(childPath1.getValue()))
+            assertThat(NodeLockHelper.isNodeCorrupted(newSession.getNode(ABSOLUTE_PARENT_NODE_PATH)))
+                    .as("The parent node should not be locked or corrupted")
+                    .isFalse();
+            
+            assertThat(newSession.nodeExists(absoluteChildPath))
                     .as("The child node should not be saved, because user transaction was aborted")
                     .isFalse();
         } finally {
@@ -127,35 +121,90 @@ public class TransactionTest extends AbstractModeShapeClusterTest {
     }
     
     @Test
-    public void addTwoNodes() throws Exception {
-        Session session = createSession(repositoryIterator.next());
+    public void addOneNodeAbortBeforeSaveUnlockSuspendAborted() throws Exception {
+        Session session = AbstractModeShapeClusterTest.createSession(repository);
         
-        MutableObject<String> childPath1 = new MutableObject<>();
-        MutableObject<String> childPath2 = new MutableObject<>();
+        String absoluteChildPath = ABSOLUTE_PARENT_NODE_PATH + "/" + "child";
+        String relativeChildPath = "child";
         
         try {
             Node parentNode = session.getNode(ABSOLUTE_PARENT_NODE_PATH);
-            NodeHelper.lockNode(parentNode);
+            NodeLockHelper.lockNode(parentNode);
             
-            // Attempt to add two child nodes inside a user transaction that is aborted in the
-            // middle of the run. Ideally, no nodes should be persisted.
+            try {
+                TransactionExecutor.runInTransaction(() -> {
+
+                    LOGGER.trace("Waiting for user transaction to expire");
+                    
+                    try {
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+                        
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    
+                    LOGGER.trace("Attempting to add a new child node when initial user transaction "
+                            + "has expired");
+                    
+                    Node childNode1 = parentNode.addNode(relativeChildPath);
+                    childNode1.addMixin("mix:lockable");
+                    session.save();
+                    
+                    return null;
+                });
+                
+            } catch (RuntimeException e) {
+                assertThat(e.getMessage()).contains("Non-active user transaction");
+                
+            } finally {
+                NodeLockHelper.unlockSuspendNotActive(parentNode);
+            }
+            
+        } finally {
+            session.logout();
+        }
+        
+        Session newSession = AbstractModeShapeClusterTest.createSession(repository);
+        try {
+            assertThat(NodeLockHelper.isNodeCorrupted(newSession.getNode(ABSOLUTE_PARENT_NODE_PATH)))
+                    .as("The parent node should not be locked or corrupted")
+                    .isFalse();
+            
+            assertThat(newSession.nodeExists(absoluteChildPath))
+                    .as("The child node should not be saved, because user transaction was aborted")
+                    .isFalse();
+        } finally {
+            newSession.logout();
+        }
+    }
+    
+    // Caused by: java.lang.IllegalStateException: Cannot attempt to lock documents without an existing ModeShape transaction
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:160)
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:153)
+    //   at org.modeshape.jcr.cache.document.WritableSessionCache.lockNodes(WritableSessionCache.java:1524)
+    //
+    @Test
+    public void addTwoNodesAbortBeforeSecondSaveUnlockSuspendAborted() throws Exception {
+        Session session = AbstractModeShapeClusterTest.createSession(repository);
+        
+        String absoluteChildPath1 = ABSOLUTE_PARENT_NODE_PATH + "/" + "child-1";
+        String relativeChildPath1 = "child-1";
+        
+        String absoluteChildPath2 = ABSOLUTE_PARENT_NODE_PATH + "/" + "child-2";
+        String relativeChildPath2 = "child-2";
+        
+        try {
+            Node parentNode = session.getNode(ABSOLUTE_PARENT_NODE_PATH);
+            NodeLockHelper.lockNode(parentNode);
             
             try {
                 TransactionExecutor.runInTransaction(() -> {
                     
-                    // Add the first child node and invoke save on the session before transaction
-                    // is aborted. Since initial transaction is active, no changes should be
-                    // persisted at this point.
-                    
                     LOGGER.trace("Adding the first child node while user transaction is still active");
                     
-                    Node childNode1 = parentNode.addNode(UUID.randomUUID().toString());
+                    Node childNode1 = parentNode.addNode(relativeChildPath1);
                     childNode1.addMixin("mix:lockable");
                     session.save();
-                    
-                    // Wait for "com.arjuna.ats.arjuna.coordinator.TransactionReaper" to abort the
-                    // transaction. The timeout is set to "3" seconds, but we will wait here for
-                    // "5" seconds to ensure that enough time has passed.
                     
                     LOGGER.trace("Waiting for user transaction to expire");
                     
@@ -166,46 +215,104 @@ public class TransactionTest extends AbstractModeShapeClusterTest {
                         throw new RuntimeException(e);
                     }
                     
-                    // At this point the initial transaction should be aborted and disassociated
-                    // with the thread. Add a new child node.
-                    
                     LOGGER.trace("Adding the second child node when user transaction was aborted");
                     
-                    Node childNode2 = parentNode.addNode(UUID.randomUUID().toString());
+                    Node childNode2 = parentNode.addNode(relativeChildPath2);
                     childNode2.addMixin("mix:lockable");
-                    
-                    // This call results in a significant delay which eventually leads to an exception
-                    // stating that the lock could not be acquired after specified timeout.
-                    
                     session.save();
-                    
-                    childPath1.setValue(childNode1.getPath());
-                    childPath2.setValue(childNode2.getPath());
                     
                     return null;
                 });
                 
+            } catch (RuntimeException e) {
+                assertThat(e.getMessage()).contains("Non-active user transaction");
+                
             } finally {
-                NodeHelper.unlockNode(parentNode);
+                NodeLockHelper.unlockSuspendNotActive(parentNode);
             }
             
         } finally {
             session.logout();
         }
         
-        // This part of the test is never reached, due to timeout exception on the attempt to save
-        // the second added node.
-        
-        assertThat(childPath1.getValue()).isNotNull();
-        assertThat(childPath2.getValue()).isNotNull();
-        Session newSession = createSession(repositoryIterator.next());
-        
+        Session newSession = AbstractModeShapeClusterTest.createSession(repository);
         try {
-            assertThat(newSession.nodeExists(childPath1.getValue()))
+            assertThat(newSession.nodeExists(absoluteChildPath1))
                     .as("The first child node should not be saved, because user transaction was aborted")
                     .isFalse();
             
-            assertThat(newSession.nodeExists(childPath2.getValue()))
+            assertThat(newSession.nodeExists(absoluteChildPath2))
+                    .as("The seconds child node should not be saved, because user transaction was aborted")
+                    .isFalse();
+        } finally {
+            newSession.logout();
+        }
+    }
+    
+    // Caused by: java.lang.IllegalStateException: Cannot attempt to lock documents without an existing ModeShape transaction
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:160)
+    //   at org.modeshape.jcr.cache.document.LocalDocumentStore.lockDocuments(LocalDocumentStore.java:153)
+    //   at org.modeshape.jcr.cache.document.WritableSessionCache.lockNodes(WritableSessionCache.java:1524)
+    //
+    @Test
+    public void addTwoNodesAbortBeforeSecondSaveUnlockNewThread() throws Exception {
+        Session session = AbstractModeShapeClusterTest.createSession(repository);
+        
+        String absoluteChildPath1 = ABSOLUTE_PARENT_NODE_PATH + "/" + "child-1";
+        String relativeChildPath1 = "child-1";
+        
+        String absoluteChildPath2 = ABSOLUTE_PARENT_NODE_PATH + "/" + "child-2";
+        String relativeChildPath2 = "child-2";
+        
+        try {
+            Node parentNode = session.getNode(ABSOLUTE_PARENT_NODE_PATH);
+            NodeLockHelper.lockNode(parentNode);
+            
+            try {
+                TransactionExecutor.runInTransaction(() -> {
+                    
+                    LOGGER.trace("Adding the first child node while user transaction is still active");
+                    
+                    Node childNode1 = parentNode.addNode(relativeChildPath1);
+                    childNode1.addMixin("mix:lockable");
+                    session.save();
+                    
+                    LOGGER.trace("Waiting for user transaction to expire");
+                    
+                    try {
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+                        
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    
+                    LOGGER.trace("Adding the second child node when user transaction was aborted");
+                    
+                    Node childNode2 = parentNode.addNode(relativeChildPath2);
+                    childNode2.addMixin("mix:lockable");
+                    session.save();
+                    
+                    return null;
+                });
+                
+            } catch (RuntimeException e) {
+                assertThat(e.getMessage()).contains("Non-active user transaction");
+                
+            } finally {
+                NodeLockHelper.unlockInNewThread(parentNode);
+            }
+            
+        } finally {
+            session.logout();
+        }
+        
+        Session newSession = AbstractModeShapeClusterTest.createSession(repository);
+        try {
+            assertThat(newSession.nodeExists(absoluteChildPath1))
+                    .as("The first child node should not be saved, because user transaction was aborted")
+                    .isFalse();
+            
+            assertThat(newSession.nodeExists(absoluteChildPath2))
                     .as("The seconds child node should not be saved, because user transaction was aborted")
                     .isFalse();
         } finally {

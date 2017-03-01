@@ -15,7 +15,19 @@ import javax.transaction.TransactionManager;
  */
 public class TransactionExecutor {
 
-    private static final TransactionManager MANAGER = new ArjunaTransactionManagerLookup().getTransactionManager();
+    public static final TransactionManager MANAGER = new ArjunaTransactionManagerLookup().getTransactionManager();
+    
+    public static <T> T forceRunInTransaction(Callable<T> callable) {
+        try {
+            if (!isActive()) {
+                MANAGER.suspend();
+            }
+        } catch (SystemException e) {
+            throw new RuntimeException(e);
+        }
+        
+        return runInTransaction(callable);
+    }
     
     public static <T> T runInTransaction(Callable<T> callable) {
         boolean commit = true;
@@ -28,6 +40,11 @@ public class TransactionExecutor {
             }
 
             T result = callable.call();
+            
+            if (!isActive()) {
+                throw new RuntimeException(String.format("The transaction is no longer active [toString=%s]",
+                        MANAGER.getTransaction()));
+            }
             
             if (isActive() && commit) {
                 MANAGER.commit();
@@ -52,7 +69,7 @@ public class TransactionExecutor {
         }
     }
     
-    private static boolean isActive() throws SystemException {
+    public static boolean isActive() throws SystemException {
         Transaction transaction = MANAGER.getTransaction();
         return transaction != null && transaction.getStatus() == Status.STATUS_ACTIVE;
     }
