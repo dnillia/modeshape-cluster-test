@@ -7,9 +7,11 @@
     <root level="ERROR">
         <appender-ref ref="STDOUT" />
     </root>
-    <logger name="com.foo.bar" level="TRACE" />
-    <logger name="com.arjuna.ats" level="TRACE" />
-    <logger name="org.modeshape.jcr.txn.Transactions" level="TRACE" />
+    <logger name="com.foo.bar" level="DEBUG" />
+    
+    <!-- <logger name="com.arjuna.ats" level="TRACE" />
+    <logger name="org.modeshape.jcr.txn.Transactions" level="TRACE" /> -->
+    
     <logger name="org.modeshape.jcr.clustering.ClusteringService" level="WARN" />
     <logger name="org.modeshape.jcr.bus" level="WARN" />
     <logger name="org.modeshape.jcr.clustering" level="WARN" />

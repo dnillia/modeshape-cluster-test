@@ -21,7 +21,7 @@ public class ArjunaTransactionManagerLookup implements TransactionManagerLookup 
     static {
         System.setProperty(
                 "com.arjuna.ats.arjuna.common.CoordinatorEnvironmentBean.defaultTimeout",
-                System.getProperty(TIMEOUT_PROPERTY, "3"));
+                System.getProperty(TIMEOUT_PROPERTY, "100"));
         
         System.setProperty(
                 "com.arjuna.ats.arjuna.objectstore.objectStoreDir",

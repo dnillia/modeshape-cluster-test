@@ -27,7 +27,6 @@ public class RetryAction {
         int currentAttempt = 1;
         
         while (currentAttempt <= attemptCount) {
-            LOGGER.trace("[currentAttempt={}, attemptCount={}]", currentAttempt, attemptCount);
             
             if (actionSupplier.get() != null) {
                 LOGGER.debug("Retry attempt succeeded [description={}, currentAttempt={}, "

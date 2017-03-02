@@ -15,7 +15,7 @@ import org.modeshape.jcr.JcrLexicon;
 public class NodeLockHelper {
 
     public static final String LOCK_HOLD_TIMEOUT_PROPERTY = "lock.hold.timeout";
-    private static final String LOCK_HOLD_TIMEOUT = System.getProperty(LOCK_HOLD_TIMEOUT_PROPERTY, "3");
+    private static final String LOCK_HOLD_TIMEOUT = System.getProperty(LOCK_HOLD_TIMEOUT_PROPERTY, "180");
     
     public static void lockNode(Node node) {
         TransactionExecutor.forceRunInTransaction(() -> {
@@ -23,7 +23,7 @@ public class NodeLockHelper {
                     node.getPath(),
                     false,
                     false,
-                    TimeUnit.MINUTES.toSeconds(Integer.parseInt(LOCK_HOLD_TIMEOUT)),
+                    TimeUnit.SECONDS.toSeconds(Integer.parseInt(LOCK_HOLD_TIMEOUT)),
                     null);
         });
     }
